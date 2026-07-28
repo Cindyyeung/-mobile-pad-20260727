@@ -7,6 +7,7 @@ import { Sparkles, Volume2, Heart, ArrowRight, Droplets } from 'lucide-react';
 interface HomeViewProps {
   onStartCheckIn: () => void;
   plantProgress: number;
+  stageIndex?: 1 | 2 | 3 | 4 | 5 | 6;
   plantHeight: number;
   latestMoodLabel: string;
   wateredCount: number;
@@ -32,6 +33,7 @@ interface HomeViewProps {
 export default function HomeView({
   onStartCheckIn,
   plantProgress,
+  stageIndex,
   plantHeight,
   latestMoodLabel,
   wateredCount,
@@ -152,6 +154,7 @@ export default function HomeView({
                 <AnimatedPlant
                   key={theme}
                   progress={plantProgress}
+                  stageIndex={stageIndex}
                   moodLabel={latestMoodLabel}
                   heightCm={plantHeight}
                   isWatering={showWaterEffect}
@@ -286,6 +289,7 @@ export default function HomeView({
               <AnimatedPlant
                 key={theme}
                 progress={plantProgress}
+                stageIndex={stageIndex}
                 moodLabel={latestMoodLabel}
                 heightCm={plantHeight}
                 isWatering={showWaterEffect}

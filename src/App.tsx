@@ -185,13 +185,14 @@ export default function App() {
   // Load state on mount
   useEffect(() => {
     // Migration to ensure 20 default unlocked cards and bloomed plant
-    const hasMigrationV9 = localStorage.getItem('garden_migration_v9');
-    if (!hasMigrationV9) {
+    const hasMigrationV10 = localStorage.getItem('garden_migration_v10');
+    if (!hasMigrationV10) {
       localStorage.setItem('mood_app_plant', JSON.stringify(DEFAULT_PLANT));
       localStorage.setItem('mood_app_records', JSON.stringify(DEFAULT_RECORDS));
       localStorage.setItem('mood_app_unlocked_cards', JSON.stringify(DEFAULT_DEV_CARDS));
+      localStorage.removeItem('garden_has_harvested');
       localStorage.setItem('garden_cycle_offset', '0');
-      localStorage.setItem('garden_migration_v9', 'true');
+      localStorage.setItem('garden_migration_v10', 'true');
     }
 
     const storedRecords = localStorage.getItem('mood_app_records');
@@ -298,17 +299,53 @@ export default function App() {
     };
   }, []);
 
+  const hasHarvested = gardenCycleOffset > 0 || (typeof window !== 'undefined' && localStorage.getItem('garden_has_harvested') === 'true');
   const rawCount = Math.max(0, records.length - gardenCycleOffset);
-  const checkInCount = rawCount <= 0 ? 10 : rawCount;
+  const checkInCount = hasHarvested ? rawCount : (rawCount <= 0 ? 10 : rawCount);
   const displayCount = Math.min(10, checkInCount);
 
-  let computedProgress = 100;
-  if (checkInCount < 1) computedProgress = 10;
-  else if (checkInCount < 3) computedProgress = 30;
-  else if (checkInCount < 5) computedProgress = 50;
-  else if (checkInCount < 7) computedProgress = 70;
-  else if (checkInCount < 9) computedProgress = 90;
-  else computedProgress = 100;
+  const getStageInfo = (count: number) => {
+    if (count <= 1) { // 0-1/10
+      return {
+        stageName: '種子期',
+        progress: Math.round((count / 10) * 100),
+        stageIndex: 1 as const,
+      };
+    } else if (count <= 3) { // 2-3/10
+      return {
+        stageName: '發芽期',
+        progress: Math.round((count / 10) * 100),
+        stageIndex: 2 as const,
+      };
+    } else if (count === 4) { // 4/10
+      return {
+        stageName: '幼苗期',
+        progress: 40,
+        stageIndex: 3 as const,
+      };
+    } else if (count <= 6) { // 5-6/10
+      return {
+        stageName: '花蕾期',
+        progress: Math.round((count / 10) * 100),
+        stageIndex: 4 as const,
+      };
+    } else if (count <= 8) { // 7-8/10
+      return {
+        stageName: '含苞期',
+        progress: Math.round((count / 10) * 100),
+        stageIndex: 5 as const,
+      };
+    } else { // 9-10/10 (盛開期)
+      return {
+        stageName: '盛開期',
+        progress: Math.min(100, Math.round((count / 10) * 100)),
+        stageIndex: 6 as const,
+      };
+    }
+  };
+
+  const currentStageInfo = getStageInfo(checkInCount);
+  const computedProgress = currentStageInfo.progress;
 
   const toggleMute = () => {
     const nextMute = !isMuted;
@@ -550,6 +587,7 @@ export default function App() {
               <HomeView
                 onStartCheckIn={handleStartCheckIn}
                 plantProgress={computedProgress}
+                stageIndex={currentStageInfo.stageIndex}
                 plantHeight={plantState.height}
                 latestMoodLabel={latestMoodLabel}
                 wateredCount={plantState.wateredCount}

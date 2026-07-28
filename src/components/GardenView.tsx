@@ -241,18 +241,20 @@ export default function GardenView({
   const [showShareSuccess, setShowShareSuccess] = useState(false);
   const [showQuoteSelectorModal, setShowQuoteSelectorModal] = useState(false);
   const [showGrowthModal, setShowGrowthModal] = useState(false);
+  const [showHarvestConfirmModal, setShowHarvestConfirmModal] = useState(false);
 
   // Harvest toast/feedback message
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // Calculate dynamic check-in progress (Default Developer Setting: 10/10 盛開期)
+  // Calculate dynamic check-in progress
+  const hasHarvested = gardenCycleOffset > 0 || typeof window !== 'undefined' && localStorage.getItem('garden_has_harvested') === 'true';
   const rawCount = Math.max(0, records.length - gardenCycleOffset);
-  const checkInCount = rawCount <= 0 ? 10 : rawCount;
+  const checkInCount = hasHarvested ? rawCount : (rawCount <= 0 ? 10 : rawCount);
   const displayCount = Math.min(10, checkInCount);
   const progressPercent = Math.min(100, Math.round((displayCount / 10) * 100));
 
   // Stage details based on actual count (6 stages on 10-point scale)
-  const getStageInfo = (count: number) => {
+  const getStageInfo = (count: number): { stageName: string; label: string; desc: string; progress: number; stageIndex: 1 | 2 | 3 | 4 | 5 | 6 } => {
     if (count <= 1) { // 0-1/10
       return {
         stageName: '種子期',
@@ -325,10 +327,12 @@ export default function GardenView({
   const handleOpenConfirmModal = (gift: GiftItem) => {
     setGiftToConfirm(gift);
     const cardsNeeded = gift.cardsNeeded || 0;
-    const pointsMet = score >= gift.cost;
+    const pointsMet = gift.cost > 0 && score >= gift.cost;
     const cardsMet = cardsNeeded > 0 && unlockedCardsCount >= cardsNeeded;
 
-    if (pointsMet) {
+    if (gift.cost === 0 && cardsNeeded > 0) {
+      setSelectedExchangeMethod('cards');
+    } else if (pointsMet) {
       setSelectedExchangeMethod('points');
     } else if (cardsMet) {
       setSelectedExchangeMethod('cards');
@@ -538,6 +542,11 @@ export default function GardenView({
     playSuccessChime();
     onUpdateScore(score + 10);
     onUpdateGardenCycleOffset(records.length);
+    try {
+      localStorage.setItem('garden_has_harvested', 'true');
+    } catch (e) {
+      console.warn('Failed to save harvest state', e);
+    }
     setToastMessage('🎉 收割成功！獲得了 10 積分！花園已重獲新生，重新播下希望的種子！🌱');
     setTimeout(() => {
       setToastMessage(null);
@@ -746,6 +755,7 @@ export default function GardenView({
                       <AnimatedPlant
                         key={plantState.theme}
                         progress={stageInfo.progress}
+                        stageIndex={stageInfo.stageIndex}
                         moodLabel={latestMoodLabel}
                         heightCm={10 + checkInCount}
                         isStatic={true}
@@ -1717,94 +1727,113 @@ export default function GardenView({
 
                     {/* Options Selection Box */}
                     <div className="bg-white p-3.5 rounded-xl border border-brand-sand/80 text-left space-y-2.5 shadow-xs">
-                      <p className="text-xs font-black text-slate-700">使用以下方式兌換：</p>
-
-                      <div className="space-y-1.5">
-                        {/* Option 1: Points */}
-                        <button
-                          type="button"
-                          disabled={!pointsMet}
-                          onClick={() => {
-                            if (pointsMet) {
-                              playClickSound(500, 'sine');
-                              setSelectedExchangeMethod('points');
-                            }
-                          }}
-                          className={`w-full text-left flex items-center justify-between p-2.5 rounded-lg text-xs font-bold transition border-0 ${
-                            selectedExchangeMethod === 'points'
-                              ? 'bg-amber-50/90 text-amber-900 border border-amber-300 font-black'
-                              : pointsMet
-                              ? 'bg-slate-50 hover:bg-slate-100 text-slate-700 cursor-pointer'
-                              : 'bg-slate-50 text-slate-400 opacity-70 cursor-not-allowed'
-                          }`}
-                        >
-                          <span className="flex items-center gap-2">
-                            <span className="text-amber-600 font-black text-sm">
-                              {selectedExchangeMethod === 'points' ? '●' : '○'}
+                      {giftToConfirm.cost === 0 ? (
+                        <>
+                          <p className="text-xs font-black text-slate-700">
+                            使用以下方式兌換：<span className="text-amber-800 font-extrabold">只有圖鑑可以兌換</span>
+                          </p>
+                          <div className="bg-amber-50/90 text-amber-900 border border-amber-300 p-2.5 rounded-lg text-xs font-black flex items-center justify-between">
+                            <span className="flex items-center gap-2">
+                              <span className="text-amber-600 font-black text-sm">●</span>
+                              <span>🃏 {cardsNeeded} 張圖鑑</span>
                             </span>
-                            <span>⭐ {giftToConfirm.cost} 積分</span>
-                          </span>
-                          {!bothMet && (
-                            <span className={`text-[11px] font-black ${pointsMet ? 'text-emerald-600' : 'text-slate-400'}`}>
-                              ({pointsMet ? '已符合' : '未符合'})
-                            </span>
-                          )}
-                        </button>
-
-                        {/* Option 2: Cards */}
-                        <button
-                          type="button"
-                          disabled={!cardsMet}
-                          onClick={() => {
-                            if (cardsMet) {
-                              playClickSound(500, 'sine');
-                              setSelectedExchangeMethod('cards');
-                            }
-                          }}
-                          className={`w-full text-left flex items-center justify-between p-2.5 rounded-lg text-xs font-bold transition border-0 ${
-                            selectedExchangeMethod === 'cards'
-                              ? 'bg-amber-50/90 text-amber-900 border border-amber-300 font-black'
-                              : cardsMet
-                              ? 'bg-slate-50 hover:bg-slate-100 text-slate-700 cursor-pointer'
-                              : 'bg-slate-50 text-slate-400 opacity-70 cursor-not-allowed'
-                          }`}
-                        >
-                          <span className="flex items-center gap-2">
-                            <span className="text-amber-600 font-black text-sm">
-                              {selectedExchangeMethod === 'cards' ? '●' : '○'}
-                            </span>
-                            <span>🃏 {cardsNeeded} 張圖鑑</span>
-                          </span>
-                          {!bothMet && (
                             <span className={`text-[11px] font-black ${cardsMet ? 'text-emerald-600' : 'text-slate-400'}`}>
                               ({cardsMet ? '已符合' : '未符合'})
                             </span>
-                          )}
-                        </button>
-                      </div>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <p className="text-xs font-black text-slate-700">使用以下方式兌換：</p>
 
-                      {/* Both conditions met status */}
-                      {bothMet && (
-                        <div className="pt-1.5 border-t border-dashed border-slate-200">
-                          <p className="text-[12px] font-black text-emerald-600 flex items-center gap-1.5">
-                            ✅ 目前兩項條件均符合
-                          </p>
-                        </div>
+                          <div className="space-y-1.5">
+                            {/* Option 1: Points */}
+                            <button
+                              type="button"
+                              disabled={!pointsMet}
+                              onClick={() => {
+                                if (pointsMet) {
+                                  playClickSound(500, 'sine');
+                                  setSelectedExchangeMethod('points');
+                                }
+                              }}
+                              className={`w-full text-left flex items-center justify-between p-2.5 rounded-lg text-xs font-bold transition border-0 ${
+                                selectedExchangeMethod === 'points'
+                                  ? 'bg-amber-50/90 text-amber-900 border border-amber-300 font-black'
+                                  : pointsMet
+                                  ? 'bg-slate-50 hover:bg-slate-100 text-slate-700 cursor-pointer'
+                                  : 'bg-slate-50 text-slate-400 opacity-70 cursor-not-allowed'
+                              }`}
+                            >
+                              <span className="flex items-center gap-2">
+                                <span className="text-amber-600 font-black text-sm">
+                                  {selectedExchangeMethod === 'points' ? '●' : '○'}
+                                </span>
+                                <span>⭐ {giftToConfirm.cost} 積分</span>
+                              </span>
+                              {!bothMet && (
+                                <span className={`text-[11px] font-black ${pointsMet ? 'text-emerald-600' : 'text-slate-400'}`}>
+                                  ({pointsMet ? '已符合' : '未符合'})
+                                </span>
+                              )}
+                            </button>
+
+                            {/* Option 2: Cards */}
+                            <button
+                              type="button"
+                              disabled={!cardsMet}
+                              onClick={() => {
+                                if (cardsMet) {
+                                  playClickSound(500, 'sine');
+                                  setSelectedExchangeMethod('cards');
+                                }
+                              }}
+                              className={`w-full text-left flex items-center justify-between p-2.5 rounded-lg text-xs font-bold transition border-0 ${
+                                selectedExchangeMethod === 'cards'
+                                  ? 'bg-amber-50/90 text-amber-900 border border-amber-300 font-black'
+                                  : cardsMet
+                                  ? 'bg-slate-50 hover:bg-slate-100 text-slate-700 cursor-pointer'
+                                  : 'bg-slate-50 text-slate-400 opacity-70 cursor-not-allowed'
+                              }`}
+                            >
+                              <span className="flex items-center gap-2">
+                                <span className="text-amber-600 font-black text-sm">
+                                  {selectedExchangeMethod === 'cards' ? '●' : '○'}
+                                </span>
+                                <span>🃏 {cardsNeeded} 張圖鑑</span>
+                              </span>
+                              {!bothMet && (
+                                <span className={`text-[11px] font-black ${cardsMet ? 'text-emerald-600' : 'text-slate-400'}`}>
+                                  ({cardsMet ? '已符合' : '未符合'})
+                                </span>
+                              )}
+                            </button>
+                          </div>
+
+                          {/* Both conditions met status */}
+                          {bothMet && (
+                            <div className="pt-1.5 border-t border-dashed border-slate-200">
+                              <p className="text-[12px] font-black text-emerald-600 flex items-center gap-1.5">
+                                ✅ 目前兩項條件均符合
+                              </p>
+                            </div>
+                          )}
+                        </>
                       )}
                     </div>
 
                     {/* Action Buttons */}
                     <div className="grid grid-cols-2 gap-2.5 pt-1">
                       <button
-                        disabled={!pointsMet && !cardsMet}
+                        disabled={giftToConfirm.cost === 0 ? !cardsMet : (!pointsMet && !cardsMet)}
                         onClick={() => {
                           const gift = giftToConfirm;
-                          const method = selectedExchangeMethod;
+                          const method = gift.cost === 0 ? 'cards' : selectedExchangeMethod;
                           setGiftToConfirm(null);
                           handleExchange(gift, method);
                         }}
                         className={`py-2.5 rounded-xl text-xs font-black transition active:scale-95 border-0 flex items-center justify-center gap-1 ${
-                          (pointsMet || cardsMet)
+                          (giftToConfirm.cost === 0 ? cardsMet : (pointsMet || cardsMet))
                             ? 'bg-brand-sage hover:bg-brand-moss text-white cursor-pointer shadow-xs'
                             : 'bg-slate-200 text-slate-400 cursor-not-allowed'
                         }`}
@@ -2005,6 +2034,7 @@ export default function GardenView({
         <AnimatedPlant
           key={plantState.theme}
           progress={stageInfo.progress}
+          stageIndex={stageInfo.stageIndex}
           moodLabel={latestMoodLabel}
           heightCm={10 + checkInCount}
           theme={plantState.theme}
@@ -2086,7 +2116,7 @@ export default function GardenView({
         {checkInCount >= 10 ? (
           <div className="flex justify-center">
             <button
-              onClick={handleHarvest}
+              onClick={() => setShowHarvestConfirmModal(true)}
               className="px-6 py-2.5 bg-brand-sage hover:bg-brand-moss text-white rounded-full text-[14px] sm:text-[15px] font-black shadow-[0_4px_12px_rgba(109,160,111,0.25)] flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer border-0 max-w-[260px] w-auto mx-auto"
               style={{ minHeight: '40px' }}
             >
@@ -2174,6 +2204,66 @@ export default function GardenView({
                 userProgressStage={stageInfo.stageIndex as any}
                 isIpad={isIpad}
               />
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* HARVEST CONFIRMATION MODAL */}
+      <AnimatePresence>
+        {showHarvestConfirmModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowHarvestConfirmModal(false)}
+              className="absolute inset-0 bg-black/50 backdrop-blur-xs"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 15 }}
+              className="bg-white rounded-3xl border-2 border-brand-sand/80 p-6 max-w-xs sm:max-w-sm w-full relative z-10 shadow-2xl text-center space-y-4"
+            >
+              <div className="w-14 h-14 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mx-auto text-2xl shadow-inner border border-emerald-200">
+                🧺
+              </div>
+
+              <div className="space-y-3">
+                <h3 className="text-lg font-black text-brand-moss">確認收割花園？</h3>
+                
+                <div className="bg-[#fcfaf5] p-4 rounded-2xl border border-brand-sand/60 space-y-2 text-center text-sm font-bold text-gray-700 leading-relaxed shadow-xs">
+                  <p className="text-brand-moss font-black text-[15px]">
+                    收割後盆栽會重新開始
+                  </p>
+                  <p className="text-gray-600 font-extrabold text-sm">
+                    由種子期再次出發
+                  </p>
+                  <div className="pt-2 text-brand-ochre font-black text-base flex items-center justify-center gap-1 border-t border-brand-sand/40 mt-1">
+                    <span>✨ 可獲得</span>
+                    <span className="text-emerald-600 text-lg font-black">+10 積分</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-center gap-3 pt-2">
+                <button
+                  onClick={() => setShowHarvestConfirmModal(false)}
+                  className="flex-1 py-2.5 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-full font-black text-sm border border-gray-300 transition active:scale-95 cursor-pointer flex items-center justify-center gap-1"
+                >
+                  <span>❌ 取消</span>
+                </button>
+                <button
+                  onClick={() => {
+                    setShowHarvestConfirmModal(false);
+                    handleHarvest();
+                  }}
+                  className="flex-1 py-2.5 px-4 bg-brand-sage hover:bg-brand-moss text-white rounded-full font-black text-sm shadow-md transition active:scale-95 cursor-pointer flex items-center justify-center gap-1"
+                >
+                  <span>✅ 確定</span>
+                </button>
+              </div>
             </motion.div>
           </div>
         )}

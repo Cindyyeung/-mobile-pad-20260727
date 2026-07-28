@@ -42,6 +42,16 @@ export default function AnimatedPlant({
     return 6; // 盛開期 (9-10/10)
   })();
 
+  const stageNames: Record<number, string> = {
+    1: '種子期',
+    2: '發芽期',
+    3: '幼苗期',
+    4: '花蕾期',
+    5: '含苞期',
+    6: '盛開期',
+  };
+  const currentStageName = stageNames[currentStageIndex] || '種子期';
+
   const legacyStage = getPlantStage(progress);
 
   // Companion counts
@@ -1330,7 +1340,7 @@ export default function AnimatedPlant({
 
       {/* Stylized Badge Label positioned below pot without overlapping */}
       <div className="mt-1 font-mono text-[10px] text-brand-moss/70 text-center leading-normal pointer-events-none select-none">
-        🌱 {theme === 'sunflower' ? '向日葵' : theme === 'rose' ? '玫瑰花' : '心晴盆栽'} (盛開期)
+        🌱 {theme === 'sunflower' ? '向日葵' : theme === 'rose' ? '玫瑰花' : '心晴盆栽'} ({currentStageName})
       </div>
     </div>
   );
